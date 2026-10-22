@@ -538,6 +538,150 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .choice.gone { animation: goneOut .4s ease-in forwards; pointer-events: none; }
 .choice.hint { animation: hint 1s ease-in-out infinite; }
 
+/* ---------- Jeux 4 ans ---------- */
+.pulse { animation: pop .35s; }
+
+/* Tuiles d'accueil */
+.art-train { display: flex; align-items: flex-end; gap: .06em; }
+.art-train i { font-style: normal; font-size: .62em; }
+.art-train b { width: .32em; height: .32em; border-radius: 50%; margin-bottom: .1em; }
+.art-letters { display: flex; gap: .06em; font-weight: 900; color: var(--accent); font-size: .8em; }
+.art-letters b:nth-child(2) { transform: translateY(-.15em); }
+
+/* Âge dans le formulaire */
+.ages { border: 0; padding: 0; margin: 0 0 18px; display: flex; flex-wrap: wrap; gap: 10px; }
+.ages legend { font-weight: 700; margin-bottom: 8px; padding: 0; }
+.ages label { position: relative; cursor: pointer; }
+.ages input { position: absolute; opacity: 0; pointer-events: none; }
+.ages span {
+    display: grid;
+    place-items: center;
+    min-width: 96px;
+    min-height: 56px;
+    padding: 0 18px;
+    border-radius: 16px;
+    background: #F6F2FD;
+    border: 3px solid transparent;
+    font-size: 20px;
+    font-weight: 800;
+}
+.ages input:checked + span { border-color: var(--accent); background: var(--tint); }
+.ages input:focus-visible + span { outline: 4px solid var(--accent); outline-offset: 2px; }
+.ages .muted { flex-basis: 100%; margin: 0; }
+
+/* Jeu 1 : le pré */
+.meadow {
+    position: relative;
+    width: min(620px, 84vw);
+    height: clamp(170px, 32vh, 320px);
+    font-size: clamp(48px, 10vmin, 92px);
+}
+.meadow-line { display: flex; align-items: center; justify-content: center; gap: .25em; }
+.farm-animal {
+    line-height: 1;
+    padding: .08em;
+    border-radius: 50%;
+    position: relative;
+    transition: background .2s, box-shadow .2s;
+}
+.meadow:not(.meadow-line) .farm-animal { position: absolute; }
+/* Un animal déjà compté change de couleur et garde son numéro */
+.farm-animal.counted { background: #FFF1C4; box-shadow: 0 0 0 4px var(--gold); }
+.farm-animal.counted::after {
+    content: attr(data-n);
+    position: absolute;
+    top: -.15em;
+    right: -.15em;
+    min-width: .5em;
+    height: .5em;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: .38em;
+    font-weight: 900;
+    display: grid;
+    place-items: center;
+    padding: 0 .1em;
+}
+.hand { width: 82%; height: 82%; }
+.pips { color: var(--accent); font-size: .3em; }
+.group.g6 i:nth-child(1) { grid-area: 1 / 1; }
+.group.g6 i:nth-child(2) { grid-area: 2 / 1; }
+.group.g6 i:nth-child(3) { grid-area: 3 / 1; }
+.group.g6 i:nth-child(4) { grid-area: 1 / 3; }
+.group.g6 i:nth-child(5) { grid-area: 2 / 3; }
+.group.g6 i:nth-child(6) { grid-area: 3 / 3; }
+
+/* Jeu 6 : le train */
+.train {
+    display: flex;
+    align-items: flex-end;
+    gap: .12em;
+    font-size: clamp(30px, min(8.5vmin, 8.6vw), 74px);
+}
+.loco { font-size: 1.25em; line-height: 1; }
+.wagon {
+    width: 1.3em;
+    height: 1.1em;
+    border-radius: .2em;
+    background: var(--tint);
+    box-shadow: inset 0 0 0 3px var(--line);
+    display: grid;
+    place-items: center;
+    position: relative;
+    font-size: 1em;
+}
+.wagon::after {
+    content: '';
+    position: absolute;
+    bottom: -.18em;
+    left: .15em;
+    right: .15em;
+    height: .2em;
+    background: radial-gradient(circle at 20% 50%, var(--accent-dark) .09em, transparent .1em), radial-gradient(circle at 80% 50%, var(--accent-dark) .09em, transparent .1em);
+}
+.wagon .emoji { font-size: .7em; }
+.wagon .shape { width: .8em; height: .8em; }
+.wagon.empty { background: var(--card); box-shadow: inset 0 0 0 3px var(--accent); color: var(--accent); font-weight: 900; font-size: 1em; }
+.dot-color { width: .75em; height: .75em; border-radius: 50%; box-shadow: inset 0 -.08em 0 rgba(0, 0, 0, .18); }
+.choice .dot-color { width: 70%; height: 70%; }
+
+/* Jeu 9 : le tambour et les maisons */
+.drum-zone { flex-direction: column; align-items: center; gap: 10px; }
+.drum {
+    width: clamp(150px, min(34vw, 28vh), 230px);
+    aspect-ratio: 120 / 110;
+    filter: drop-shadow(0 8px 0 var(--shade));
+}
+.drum svg { width: 100%; height: 100%; display: block; }
+.drum:active { transform: translateY(4px) scale(.97); }
+.taps { display: flex; gap: 10px; min-height: 30px; }
+.taps i { width: 26px; height: 26px; border-radius: 50%; background: var(--gold); box-shadow: inset 0 -4px 0 var(--gold-dark); animation: pop .3s; }
+.taps i.ghost { background: none; box-shadow: inset 0 0 0 3px var(--gold); border: 2px dashed transparent; animation: none; }
+.house { position: relative; width: 86%; height: 86%; display: grid; place-items: center; }
+.house svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.house path { fill: var(--tint); stroke: var(--accent); stroke-width: 5; stroke-linejoin: round; }
+.house-dots { position: relative; margin-top: 30%; color: var(--accent); font-size: .26em; letter-spacing: .1em; }
+
+/* Jeu 11 : le prénom */
+.big-letter { font-weight: 900; color: var(--accent); font-size: 1em; }
+.name-board { display: grid; gap: 14px; justify-items: center; font-size: clamp(34px, min(8vmin, 9vw), 64px); font-weight: 900; }
+.name-model { display: flex; gap: .15em; color: var(--muted); opacity: .55; }
+.name-slots { display: flex; gap: .15em; flex-wrap: wrap; justify-content: center; border-radius: 20px; }
+.slot-letter {
+    width: 1.1em;
+    height: 1.25em;
+    border-radius: .2em;
+    border-bottom: 5px solid var(--line);
+    display: grid;
+    place-items: center;
+    color: var(--accent);
+}
+.slot-letter.filled { border-bottom-color: var(--accent); animation: pop .35s; }
+.choices.letters { --size: clamp(78px, min(16vw, 15vh), 120px); gap: 12px; max-width: 760px; margin-inline: auto; }
+.letter-tile { font-weight: 900; color: var(--accent); font-size: calc(var(--size) * .55); }
+.letter-tile.placed { visibility: hidden; }
+
 /* ---------- Autocollants ---------- */
 .sticker-grid {
     flex: 1;

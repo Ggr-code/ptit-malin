@@ -41,8 +41,13 @@ const PRENOMS = (existsSync(PRENOMS_FILE) ? readFileSync(PRENOMS_FILE, 'utf8').s
     .filter((l) => l && !l.startsWith('#'))
     .map((l) => {
         const [shown, spoken] = l.split('=').map((s) => s.trim())
-        return { shown, spoken: spoken || shown }
+        return { shown, spoken: spoken || defaultPronunciation(shown) }
     })
+
+// Prononciation de la famille : un prénom qui finit par « on » se dit « onne » (et non « on » comme dans « bonbon »)
+function defaultPronunciation(name) {
+    return name.replace(/on$/i, 'onne')
+}
 
 const context = vm.createContext({
     PHRASES_ONLY: true,
@@ -63,6 +68,8 @@ const phrases = vm.runInContext(`(() => {
     UNIVERSES.forEach((u) => add(u.name + ' !'))
     for (let n = 0; n <= STICKERS.length; n++) add(stickerCount(n))
     ANIMALS.forEach((a) => add(a.cri))
+    // Phrases des jeux 4 ans dites hors des questions (compter, tambour, lettres…)
+    extraPhrases().forEach(add)
     // Les questions sont tirées au hasard : on en tire assez pour couvrir toutes les combinaisons
     for (const u in GEN) for (const l in GEN[u]) for (let i = 0; i < 5000; i++) {
         const q = GEN[u][l]()

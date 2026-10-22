@@ -34,7 +34,7 @@ const PHRASES = {
 const stickerCount = (n) => (n ? `Tu as ${n} autocollant${n > 1 ? 's' : ''} !` : PHRASES.noSticker)
 // « Bravo ! » seul, ou « Bravo, » suivi du prénom
 const praise = (word, withName) => (withName ? [`${word},`, NAME] : [`${word} !`])
-const WORDS = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq']
+const WORDS = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six']
 
 /* =========================================================
    Utilitaires
@@ -54,6 +54,14 @@ const sample = (a, k) => shuffle(a).slice(0, k)
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1)
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i)
+// Relance une petite animation CSS (.pulse) sur un élément
+const pulse = (el) => {
+    if (!el) return
+    el.classList.remove('pulse')
+    void el.offsetWidth
+    el.classList.add('pulse')
+}
 
 /* =========================================================
    Stockage local (aucun serveur, aucun compte)
@@ -70,19 +78,22 @@ const Store = {
         if (!this.data.settings.timerSetByParent) this.data.settings.timerMin = DEFAULT_TIMER_MIN
         this.data.session = { usedMs: 0, last: 0, ...this.data.session }
         if (!this.profile && this.data.profiles.length) this.data.currentId = this.data.profiles[0].id
+        // Profils créés avant le choix de l'âge : 3 ans
+        for (const p of this.data.profiles) p.age ||= 3
     },
     save() {
         try { localStorage.setItem(STORE_KEY, JSON.stringify(this.data)) } catch { /* stockage indisponible */ }
     },
     get profile() {
-        return this.data.profiles.find((p) => p.id === this.data.currentId) || null
+        return this.data?.profiles.find((p) => p.id === this.data.currentId) || null
     },
-    addProfile(name, avatar) {
+    addProfile(name, avatar, age = 3) {
         const p = {
             id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
             name,
             avatar,
-            progress: { couleurs: 0, formes: 0, animaux: 0, chiffres: 0 },
+            age,
+            progress: {},
             stickers: []
         }
         this.data.profiles.push(p)
@@ -298,7 +309,17 @@ const Talk = {
         for (const p of [].concat(parts)) {
             if (my !== this.token) return
             if (typeof p === 'string') await Voice.say(p, true)
-            else if (p.name) await Voice.sayName(Store.profile?.name || '', true)
+            // Comparer au marqueur lui-même : les animaux ont aussi une propriété name (« le chien »)
+            else if (p === NAME) await Voice.sayName(Store.profile?.name || '', true)
+            else if (p.sfx) { Sfx[p.sfx](); await wait(700) }
+            else if (p.drum) {
+                // Modèle : le tambour bat une fois par morceau du mot
+                for (let i = 0; i < p.drum && my === this.token; i++) {
+                    Sfx.drum()
+                    pulse($('.drum'))
+                    await wait(550)
+                }
+            }
             else if (!(await Clip.play(Clip.animal, `sons/${p.snd}.mp3`)) && my === this.token) await Voice.say(p.cri, true)
         }
     }
@@ -337,7 +358,11 @@ const Sfx = {
     tap() { this.tone(660, 0, 0.07, 'sine', 0.08) },
     good() { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, i * 0.08, 0.25, 'triangle')) },
     soft() { this.tone(330, 0, 0.18, 'sine', 0.12); this.tone(262, 0.13, 0.25, 'sine', 0.12) },
-    fanfare() { [523, 659, 784, 659, 784, 1047, 1047].forEach((f, i) => this.tone(f, i * 0.13, 0.32, 'triangle', 0.2)) }
+    fanfare() { [523, 659, 784, 659, 784, 1047, 1047].forEach((f, i) => this.tone(f, i * 0.13, 0.32, 'triangle', 0.2)) },
+    // Instruments du train des motifs et du tambour des syllabes
+    drum() { this.tone(120, 0, 0.18, 'sine', 0.45); this.tone(70, 0, 0.3, 'triangle', 0.35) },
+    bell() { this.tone(1320, 0, 1, 'sine', 0.16); this.tone(1980, 0, 0.7, 'sine', 0.06) },
+    trumpet() { this.tone(466, 0, 0.4, 'sawtooth', 0.07); this.tone(932, 0, 0.35, 'square', 0.025) }
 }
 
 /* =========================================================
@@ -674,7 +699,244 @@ const UNIVERSES = [
         art: `<span class="art-digits">${[1, 2, 3].map((n) => `<b>${n}</b>`).join('')}</span>`
     }
 ]
-const UNI = Object.fromEntries(UNIVERSES.map((u) => [u.id, u]))
+/* =========================================================
+   Jeux 4 ans (attendus de moyenne section)
+   Document de référence : « Jeux d'apprentissage pour un enfant de 4 ans ».
+   Première série, dans l'ordre conseillé : jeux 1, 6, 9 et 11.
+   ========================================================= */
+const PHRASES4 = {
+    trainLook: "Regarde le train. Qu'est-ce qui va dans le dernier wagon ?",
+    trainListen: 'Écoute le train qui joue de la musique.',
+    trainNext: 'Quel son vient après ?',
+    trainDone: 'Le train est complet !',
+    listen: 'Écoute bien :',
+    drumYourTurn: 'À toi ! Tape sur le tambour.',
+    drumAsk: 'Tape sur le tambour pour chaque morceau du mot.',
+    yourTurn: 'À toi !',
+    houses: 'Dans quelle maison va ce mot ? Compte les morceaux.',
+    nameOrder: "Remets les lettres de ton prénom dans l'ordre.",
+    nameFirst: 'Touche la première lettre de ton prénom.',
+    nameDone: 'Tu as écrit ton prénom :'
+}
+
+/* ---------- Jeu 1 : La ferme qui compte (dénombrer jusqu'à 6) ---------- */
+const FARM = [
+    { e: '🐑', s: 'mouton', p: 'moutons' },
+    { e: '🐄', s: 'vache', p: 'vaches', f: true },
+    { e: '🐔', s: 'poule', p: 'poules', f: true },
+    { e: '🐖', s: 'cochon', p: 'cochons' },
+    { e: '🦆', s: 'canard', p: 'canards' },
+    { e: '🐎', s: 'cheval', p: 'chevaux' }
+]
+const countWord = (n) => `${cap(WORDS[n])} !`
+
+// Main dessinée avec n doigts levés (index, majeur, annulaire, auriculaire, puis pouce)
+function handSvg(n) {
+    const fingers = [[26, 14], [40, 8], [54, 14], [68, 24]].map(([x, top], i) => {
+        const up = i < Math.min(n, 4)
+        return `<rect x="${x}" y="${up ? top : 42}" width="13" height="${up ? 60 - top : 20}" rx="6.5"/>`
+    }).join('')
+    const thumbUp = '<rect x="6" y="46" width="13" height="36" rx="6.5" transform="rotate(-35 12 82)"/>'
+    const thumbFolded = '<ellipse cx="34" cy="74" rx="13" ry="7"/>'
+    return `<svg class="hand" viewBox="0 0 100 112" aria-hidden="true"><g fill="#C4B3FF" stroke="#4F3591" stroke-width="3">
+        ${fingers}${n >= 5 ? thumbUp : ''}<rect x="22" y="50" width="62" height="56" rx="20"/>${n < 5 ? thumbFolded : ''}</g></svg>`
+}
+
+const FARM_ANSWERS = {
+    hand: { html: handSvg, no: (n) => `Non, là, il y a ${n === 1 ? 'un doigt' : `${WORDS[n]} doigts`}.` },
+    dice: { html: (n) => `<span class="group g${n} pips">${'<i>●</i>'.repeat(n)}</span>`, no: (n) => `Non, là, il y a ${n === 1 ? 'un point' : `${WORDS[n]} points`}.` },
+    digit: { html: digit, no: (n) => thatIs(`le ${WORDS[n]}`) }
+}
+
+// Le pré : animaux alignés (niveau 1), en désordre (2), de tailles différentes (3). Chacun se touche pour compter.
+function meadow(a, n, layout) {
+    const cells = shuffle(range(0, 5))
+    const animals = range(0, n - 1).map((i) => {
+        let style = ''
+        if (layout !== 'line') {
+            const col = cells[i] % 3
+            const row = Math.floor(cells[i] / 3)
+            const size = layout === 'sizes' ? rand([0.65, 0.85, 1, 1.2]) : 1
+            style = ` style="left:${(col * 33 + 3 + Math.random() * 8).toFixed(1)}%;top:${(row * 50 + 3 + Math.random() * 12).toFixed(1)}%;font-size:${size}em"`
+        }
+        return `<button class="farm-animal" data-act="count"${style} aria-label="${a.s}">${a.e}</button>`
+    }).join('')
+    return `<div class="meadow meadow-${layout}">${animals}</div>`
+}
+
+function farmQuestion(max, layout, kind) {
+    const a = rand(FARM)
+    const t = 1 + Math.floor(Math.random() * max)
+    const options = [t, ...sample(range(1, max).filter((n) => n !== t), 2)]
+    const ans = FARM_ANSWERS[kind]
+    return question([`Touche chaque ${a.s} pour les compter.`, `Combien y a-t-il ${de(a.p)} ?`], meadow(a, t, layout),
+        options.map((n) => ({ kind: kind === 'hand' ? 'hand' : 'card', html: ans.html(n), label: String(n), correct: n === t, no: ans.no(n) })),
+        `${counting(t)} : ${qty(t, a)} !`, `${a.e}${t}`)
+}
+
+/* ---------- Jeu 6 : Le train des motifs (prolonger un motif) ---------- */
+const SOUND_ITEMS = [
+    { html: '🥁', name: 'le tambour', sfx: 'drum' },
+    { html: '🔔', name: 'la cloche', sfx: 'bell' },
+    { html: '🎺', name: 'la trompette', sfx: 'trumpet' }
+]
+const TRAIN_SETS = {
+    colors: () => COLORS.slice(0, 5).map((c) => ({ html: `<span class="dot-color" style="background:${c.hex}"></span>`, name: theColor(c), key: c.id })),
+    shapes: () => ALL_SHAPES.map((id) => ({ html: shapeSvg(id, { fill: SHAPE_FILL }), name: SHAPES[id].name, key: id })),
+    animals: () => ANIMALS.map((a) => ({ html: emo(a.e), name: a.name, key: a.snd })),
+    sounds: () => SOUND_ITEMS.map((x) => ({ ...x, key: x.sfx }))
+}
+const PATTERNS = { AB: [0, 1], ABB: [0, 1, 1], ABC: [0, 1, 2], AAB: [0, 0, 1] }
+
+function trainQuestion(setNames, patternNames) {
+    const setName = rand(setNames)
+    const patternName = rand(patternNames)
+    const pattern = PATTERNS[patternName]
+    // 3 éléments : ceux du motif, plus un intrus pour les motifs à 2 éléments
+    const used = sample(TRAIN_SETS[setName](), 3)
+    const seq = range(0, 5).map((i) => used[pattern[i % pattern.length]])
+    const answer = seq[5]
+    const shown = seq.slice(0, 5)
+    const sounds = setName === 'sounds'
+    const visual = `<div class="train"><span class="loco">🚂</span>${shown.map((w) => `<span class="wagon">${w.html}</span>`).join('')}<span class="wagon empty">?</span></div>`
+    const say = sounds
+        ? [PHRASES4.trainListen, ...shown.map((w) => ({ sfx: w.sfx })), PHRASES4.trainNext]
+        : PHRASES4.trainLook
+    return question(say, visual,
+        used.map((w) => ({ kind: 'card', html: w.html, label: w.name, correct: w === answer, no: thatIs(w.name) })),
+        sounds ? [`C'est ${answer.name} !`, { sfx: answer.sfx }] : [`C'est ${answer.name} !`, PHRASES4.trainDone],
+        `${patternName}${answer.key}`)
+}
+
+/* ---------- Jeu 9 : Le tambour des syllabes ---------- */
+// s : les morceaux du mot tels que la voix les dit (écrits pour être bien lus, pas pour l'orthographe)
+const SYLLABLE_WORDS = [
+    { e: '🐱', w: 'chat', s: ['chat'] },
+    { e: '🐶', w: 'chien', s: ['chien'] },
+    { e: '🍞', w: 'pain', s: ['pain'] },
+    { e: '🚌', w: 'bus', s: ['busse'] },
+    { e: '🐻', w: 'ours', s: ['ourse'] },
+    { e: '🚆', w: 'train', s: ['train'] },
+    { e: '🐰', w: 'lapin', s: ['la', 'pin'] },
+    { e: '🐟', w: 'poisson', s: ['poi', 'sson'] },
+    { e: '🐑', w: 'mouton', s: ['mou', 'ton'] },
+    { e: '🎈', w: 'ballon', s: ['ba', 'lon'] },
+    { e: '⛵', w: 'bateau', s: ['ba', 'teau'] },
+    { e: '🚲', w: 'vélo', s: ['vé', 'lo'] },
+    { e: '🤖', w: 'robot', s: ['ro', 'bo'] },
+    { e: '🍬', w: 'bonbon', s: ['bon', 'bon'] },
+    { e: '🦋', w: 'papillon', s: ['pa', 'pi', 'yon'] },
+    { e: '🐘', w: 'éléphant', s: ['é', 'lé', 'fan'] },
+    { e: '🦘', w: 'kangourou', s: ['kan', 'gou', 'rou'] },
+    { e: '🍫', w: 'chocolat', s: ['cho', 'co', 'la'] },
+    { e: '🍍', w: 'ananas', s: ['a', 'na', 'nasse'] },
+    { e: '🐌', w: 'escargot', s: ['es', 'car', 'go'] }
+]
+const scanned = (x) => `${cap(x.s.join('… '))}.`
+const wordLine = (x) => `${cap(x.w)}.`
+const strokes = (n) => (n === 1 ? 'Un seul coup !' : `${cap(WORDS[n])} coups !`)
+const tapped = (k) => (k > 6 ? 'Tu as tapé trop de fois.' : `Tu as tapé ${k === 1 ? 'une' : WORDS[k]} fois.`)
+
+// Niveaux 1 et 2 : l'enfant tape le tambour une fois par morceau ; la réponse est vérifiée quand il s'arrête
+function drumQuestion(maxSyllables, withModel) {
+    const x = rand(SYLLABLE_WORDS.filter((y) => y.s.length <= maxSyllables))
+    const n = x.s.length
+    return {
+        mode: 'drum',
+        target: n,
+        say: withModel ? [wordLine(x), PHRASES4.listen, scanned(x), { drum: n }, PHRASES4.drumYourTurn] : [wordLine(x), PHRASES4.drumAsk],
+        visual: emo(x.e),
+        choices: [],
+        praise: [scanned(x), strokes(n)],
+        // Après une erreur : ce qu'il a tapé, puis le modèle
+        noFor: (k) => [tapped(k), PHRASES4.listen, scanned(x), { drum: n }, PHRASES4.yourTurn],
+        key: x.w
+    }
+}
+
+// Niveau 3 : ranger le mot dans la maison qui a le bon nombre de morceaux (maisons dans l'ordre 1, 2, 3)
+const houseSvg = (n) => `<span class="house"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M8 50 50 12l42 38v42H8z"/></svg><span class="house-dots">${'●'.repeat(n)}</span></span>`
+const houseName = (n) => `la maison ${n === 1 ? 'à un coup' : `à ${WORDS[n]} coups`}`
+function housesQuestion() {
+    const x = rand(SYLLABLE_WORDS)
+    const n = x.s.length
+    return {
+        say: [wordLine(x), PHRASES4.houses],
+        visual: emo(x.e),
+        choices: [1, 2, 3].map((k) => ({ kind: 'card', html: houseSvg(k), label: houseName(k), correct: k === n, no: thatIs(houseName(k)) })),
+        praise: [scanned(x), strokes(n)],
+        key: `h${x.w}`
+    }
+}
+
+/* ---------- Jeu 11 : Les lettres de mon prénom ---------- */
+// Nom des lettres, écrit pour être bien prononcé par la voix
+const LETTER_SAY = {
+    A: 'a', B: 'bé', C: 'cé', D: 'dé', E: 'eu', F: 'èfe', G: 'gé', H: 'ache', I: 'i', J: 'ji', K: 'ka', L: 'èle', M: 'ème',
+    N: 'ène', O: 'o', P: 'pé', Q: 'ku', R: 'ère', S: 'èsse', T: 'té', U: 'u', V: 'vé', W: 'double vé', X: 'iks', Y: 'i grec', Z: 'zède',
+    É: 'é', È: 'è', Ê: 'è', Ë: 'e tréma', À: 'a', Â: 'a', Ç: 'cé cédille', Î: 'i', Ï: 'i tréma', Ô: 'o', Ù: 'u', Û: 'u', Ü: 'u tréma'
+}
+const letterLine = (L) => `${cap(LETTER_SAY[L])} !`
+const lookFor = (L) => `Cherche le ${LETTER_SAY[L]}.`
+const kidLetters = () => {
+    const letters = [...(Store.profile?.name || 'Léo').toUpperCase()].filter((ch) => LETTER_SAY[ch])
+    return letters.length ? letters : ['L', 'É', 'O']
+}
+
+// Niveaux 1 (avec le modèle affiché) et 3 (sans modèle) : toucher les lettres dans l'ordre
+function nameQuestion(withModel) {
+    const letters = kidLetters()
+    const model = withModel ? `<div class="name-model">${letters.map((l) => `<span>${l}</span>`).join('')}</div>` : ''
+    return {
+        mode: 'letters',
+        letters,
+        tolerance: 1, // une erreur sur tout un prénom compte encore comme réussi
+        say: PHRASES4.nameOrder,
+        visual: `<div class="name-board">${model}<div class="name-slots">${letters.map(() => '<span class="slot-letter"></span>').join('')}</div></div>`,
+        choices: shuffle(letters).map((L) => ({ letter: L })),
+        praise: [PHRASES4.nameDone, NAME],
+        key: `n${Math.random()}`
+    }
+}
+
+// Niveau 2 : retrouver la première lettre de son prénom parmi 3
+function firstLetterQuestion() {
+    const first = kidLetters()[0]
+    const others = sample(Object.keys(LETTER_SAY).filter((l) => /^[A-Z]$/.test(l) && l !== first), 2)
+    return question(PHRASES4.nameFirst, null,
+        [first, ...others].map((L) => ({ kind: 'card', html: `<span class="big-letter">${L}</span>`, label: L, correct: L === first, no: thatIs(`le ${LETTER_SAY[L]}`) })),
+        [`C'est le ${LETTER_SAY[first]}, comme`, NAME], `f${Math.random()}`)
+}
+
+Object.assign(GEN, {
+    ferme: { 1: () => farmQuestion(3, 'line', 'hand'), 2: () => farmQuestion(5, 'scatter', 'dice'), 3: () => farmQuestion(6, 'sizes', 'digit') },
+    train: { 1: () => trainQuestion(['colors'], ['AB']), 2: () => trainQuestion(['shapes', 'animals'], ['ABB', 'ABC']), 3: () => trainQuestion(['sounds'], ['AB', 'ABB', 'AAB']) },
+    tambour: { 1: () => drumQuestion(2, true), 2: () => drumQuestion(3, false), 3: housesQuestion },
+    prenom: { 1: () => nameQuestion(true), 2: firstLetterQuestion, 3: () => nameQuestion(false) }
+})
+
+// goal : bonnes réponses pour finir un niveau (un prénom entier compte pour une réponse)
+const UNIVERSES_4 = [
+    { id: 'ferme', name: 'La ferme qui compte', color: 'var(--tint)', art: '<span class="art-animals"><i>🐑</i><i>🐄</i><i>🐔</i></span>' },
+    { id: 'train', name: 'Le train des motifs', color: 'var(--tint)', art: `<span class="art-train"><i>🚂</i>${['#E53935', '#1E88E5', '#E53935'].map((c) => `<b style="background:${c}"></b>`).join('')}</span>` },
+    { id: 'tambour', name: 'Le tambour des syllabes', color: 'var(--tint)', art: '<span class="art-animals"><i>🐰</i><i>🥁</i><i>🦋</i></span>' },
+    { id: 'prenom', name: 'Les lettres de mon prénom', color: 'var(--tint)', goal: 3, art: '<span class="art-letters"><b>A</b><b>B</b><b>C</b></span>' }
+]
+const universesFor = (p) => (p?.age === 4 ? UNIVERSES_4 : UNIVERSES)
+const UNI = Object.fromEntries([...UNIVERSES, ...UNIVERSES_4].map((u) => [u.id, u]))
+const goalOf = (uid) => UNI[uid].goal || STREAK_GOAL
+
+// Phrases dites hors des questions tirées au hasard : outils/generer-voix.mjs les enregistre aussi
+function extraPhrases() {
+    return [
+        ...Object.values(PHRASES4),
+        ...[...UNIVERSES, ...UNIVERSES_4].map((u) => `${u.name} !`),
+        ...range(1, 6).map(countWord),
+        ...range(1, 9).map(tapped),
+        ...SYLLABLE_WORDS.flatMap((x) => [wordLine(x), scanned(x), strokes(x.s.length)]),
+        ...Object.keys(LETTER_SAY).flatMap((L) => [letterLine(L), lookFor(L), thatIs(`le ${LETTER_SAY[L]}`), `C'est le ${LETTER_SAY[L]}, comme`])
+    ]
+}
 
 /* =========================================================
    Icônes de l'interface (dessinées, couleur du texte : violet par défaut)
@@ -788,6 +1050,11 @@ function profileForm(submitLabel) {
             <label class="field">Prénom de l'enfant
                 <input name="name" maxlength="20" autocomplete="off" required placeholder="Ex. : Léo">
             </label>
+            <fieldset class="ages">
+                <legend>Son âge</legend>
+                ${[3, 4].map((a, i) => `<label><input type="radio" name="age" value="${a}"${i === 0 ? ' checked' : ''}><span>${a} ans</span></label>`).join('')}
+                <p class="muted">Les jeux proposés s'adaptent à l'âge. Vous pourrez le changer plus tard.</p>
+            </fieldset>
             <fieldset class="avatars">
                 <legend>Son personnage</legend>
                 ${AVATARS.map((a, i) => `<label><input type="radio" name="avatar" value="${a}"${i === 0 ? ' checked' : ''}><span>${a}</span></label>`).join('')}
@@ -802,7 +1069,7 @@ function bindProfileForm(root, onDone) {
         e.preventDefault()
         const name = form.name.value.trim()
         if (!name) return form.name.focus()
-        Store.addProfile(name, form.avatar.value)
+        Store.addProfile(name, form.avatar.value, +form.age.value)
         onDone()
     })
 }
@@ -813,7 +1080,7 @@ function renderSetup() {
         <div class="panel setup-panel">
             <div class="setup-hero">${mascotSvg()}</div>
             <h1>Bienvenue dans P'tit Malin</h1>
-            <p>Cette application aide votre enfant à découvrir les couleurs, les formes, les animaux et les chiffres, en jouant.
+            <p>Cette application aide votre enfant à apprendre en jouant, avec des jeux adaptés à son âge (3 ou 4 ans) : couleurs, formes, animaux, nombres, motifs, sons et lettres.
             Tout se fait à la voix et en images : il n'a pas besoin de savoir lire.</p>
             <p class="muted">Les données restent sur cet appareil. Pas de compte, pas de publicité, pas d'achat.</p>
             ${profileForm("C'est parti !")}
@@ -828,7 +1095,7 @@ function renderSetup() {
 function renderHome(greet = false) {
     stopGame()
     const p = Store.profile
-    const tiles = UNIVERSES.map((u) => {
+    const tiles = universesFor(p).map((u) => {
         const done = p.progress[u.id] || 0
         const stars = [1, 2, 3].map((i) => `<span class="star${i <= done ? ' on' : ''}">★</span>`).join('')
         return `<button class="tile" data-act="u" data-u="${u.id}" style="--tile:${u.color}" aria-label="${u.name}, ${done} niveau${done > 1 ? 'x' : ''} sur 3">
@@ -864,9 +1131,9 @@ function renderLevels(uid) {
                     <span class="level-state">${icon(locked ? 'lock' : ok ? 'star' : 'play', ok ? 'gold' : '')}</span>
                 </button>`
     }).join('')
-    const discover = `<button class="level discover" data-act="discover" style="--tile:${u.color}" aria-label="Découvrir">
+    const discover = DISCOVER[uid] ? `<button class="level discover" data-act="discover" style="--tile:${u.color}" aria-label="Découvrir">
                           <span class="level-state">${icon('eye')}</span>
-                      </button>`
+                      </button>` : ''
     show(`
         <header class="bar">
             <button class="btn-round" data-act="home" aria-label="Accueil">${icon('home')}</button>
@@ -933,7 +1200,7 @@ function startGame(uid, level) {
     show(`
         <header class="bar">
             <button class="btn-round" data-act="back" aria-label="Retour aux niveaux">${icon('back')}</button>
-            <div class="dots" aria-label="Progression">${'<span class="dot"></span>'.repeat(STREAK_GOAL)}</div>
+            <div class="dots" aria-label="Progression">${'<span class="dot"></span>'.repeat(goalOf(uid))}</div>
             <button class="btn-round" data-act="repeat" aria-label="Réécouter la question">${icon('sound')}</button>
         </header>
         <main class="stage"></main>
@@ -941,6 +1208,9 @@ function startGame(uid, level) {
         if (act === 'back') { Sfx.tap(); renderLevels(uid) }
         else if (act === 'repeat') sayPrompt()
         else if (act === 'choice') onChoice(b)
+        else if (act === 'count') onCount(b)
+        else if (act === 'drum') onDrum(b)
+        else if (act === 'letter') onLetter(b)
     }).style.setProperty('--tile', u.color)
     nextQuestion()
 }
@@ -951,16 +1221,28 @@ function nextQuestion() {
     let q
     let tries = 0
     do { q = GEN[g.uid][g.level]() } while (q.key === g.lastKey && ++tries < 6)
-    Object.assign(g, { q, lastKey: q.key, attempts: 0, busy: false })
+    clearTimeout(g.tapTimer)
+    Object.assign(g, { q, lastKey: q.key, attempts: 0, busy: false, counted: 0, taps: 0, pos: 0 })
 
     $('.stage').innerHTML = q.visual
         ? `<div class="visual pop-in">${q.visual}</div>`
         : `<button class="mascot pop-in" data-act="repeat" aria-label="Réécouter la question">${mascotSvg()}</button>`
     const box = $('.choices')
-    box.className = `choices n${q.choices.length}`
-    box.innerHTML = q.choices.map((c, i) =>
-        `<button class="choice choice-${c.kind} pop-in" style="animation-delay:${80 + i * 70}ms" data-act="choice" data-i="${i}" aria-label="${esc(c.label)}">${c.html}</button>`
-    ).join('')
+    if (q.mode === 'drum') {
+        box.className = 'choices drum-zone'
+        box.innerHTML = `<button class="drum pop-in" data-act="drum" aria-label="Tambour">${drumSvg()}</button>
+            <div class="taps" aria-hidden="true"></div>`
+    } else if (q.mode === 'letters') {
+        box.className = 'choices letters'
+        box.innerHTML = q.choices.map((c, i) =>
+            `<button class="choice letter-tile pop-in" style="animation-delay:${80 + i * 50}ms" data-act="letter" data-l="${c.letter}" aria-label="${c.letter}">${c.letter}</button>`
+        ).join('')
+    } else {
+        box.className = `choices n${q.choices.length}`
+        box.innerHTML = q.choices.map((c, i) =>
+            `<button class="choice choice-${c.kind} pop-in" style="animation-delay:${80 + i * 70}ms" data-act="choice" data-i="${i}" aria-label="${esc(c.label)}">${c.html}</button>`
+        ).join('')
+    }
     sayPrompt()
     // Pendant que l'enfant réfléchit, on prépare les réponses possibles de la voix
     Clip.preload([q.praise, q.choices.map((c) => c.no || []), PRAISE.map((w) => praise(w, false))])
@@ -982,41 +1264,125 @@ function updateDots() {
     $$('.dot').forEach((d, i) => d.classList.toggle('on', i < game.streak))
 }
 
-async function onChoice(btn) {
+// Bonne réponse : fête, félicitation, puis question suivante (ou fin du niveau)
+async function answerRight(el) {
+    const g = game
+    g.busy = true
+    const token = g.token
+    el.classList.add('good')
+    $$('.choice').forEach((b) => { if (b !== el) b.classList.add('fade') })
+    // Seules les réponses trouvées du premier coup font avancer (un prénom entier tolère une erreur) ; une erreur n'enlève rien.
+    if (g.attempts <= (g.q.tolerance || 0)) g.streak++
+    updateDots()
+    Sfx.good()
+    const r = el.getBoundingClientRect()
+    Confetti.burst(r.left + r.width / 2, r.top + r.height / 2, 45)
+    // Le prénom de temps en temps seulement, pour qu'il garde sa valeur
+    const withName = Math.random() < NAME_RATE
+    await Promise.all([Talk.run(praise(rand(PRAISE), withName).concat(g.q.praise)), wait(900)])
+    if (token !== gameToken) return
+    if (g.streak >= goalOf(g.uid)) levelComplete()
+    else nextQuestion()
+}
+
+function onChoice(btn) {
     const g = game
     if (!g || g.busy) return
     const choice = g.q.choices[+btn.dataset.i]
+    if (choice.correct) return answerRight(btn)
+    // On nomme ce qu'il a touché, puis ce choix s'en va et la question est reposée
+    g.attempts++
+    btn.disabled = true
+    btn.classList.add('wrong')
+    setTimeout(() => btn.classList.replace('wrong', 'gone'), 450)
+    Sfx.soft()
+    if (g.attempts >= HINT_AFTER) {
+        $$('.choice')[g.q.choices.findIndex((c) => c.correct)].classList.add('hint')
+    }
+    sayPrompt(choice.no)
+}
 
-    if (choice.correct) {
-        g.busy = true
-        const token = g.token
-        btn.classList.add('good')
-        $$('.choice').forEach((b) => { if (b !== btn) b.classList.add('fade') })
-        // Seules les réponses trouvées du premier coup font avancer ; une erreur n'enlève rien.
-        if (g.attempts === 0) g.streak++
-        updateDots()
-        Sfx.good()
-        const r = btn.getBoundingClientRect()
-        Confetti.burst(r.left + r.width / 2, r.top + r.height / 2, 45)
-        // Le prénom de temps en temps seulement, pour qu'il garde sa valeur
-        const withName = Math.random() < NAME_RATE
-        await Promise.all([Talk.run(praise(rand(PRAISE), withName).concat(g.q.praise)), wait(900)])
-        if (token !== gameToken) return
-        if (g.streak >= STREAK_GOAL) levelComplete()
-        else nextQuestion()
-    } else {
-        // On nomme ce qu'il a touché, puis ce choix s'en va et la question est reposée
+// La ferme : chaque animal touché saute, change de couleur et la voix dit son numéro (on ne compte chacun qu'une fois)
+function onCount(btn) {
+    const g = game
+    if (!g || g.busy) return
+    if (btn.classList.contains('counted')) {
+        pulse(btn)
+        return
+    }
+    g.counted++
+    btn.classList.add('counted')
+    btn.dataset.n = g.counted
+    pulse(btn)
+    Voice.say(countWord(g.counted))
+}
+
+// Le tambour : un coup par toucher ; la réponse est vérifiée quand l'enfant s'arrête de taper
+function onDrum(btn) {
+    const g = game
+    if (!g || g.busy) return
+    Sfx.drum()
+    pulse(btn)
+    g.taps++
+    renderTaps(g)
+    clearTimeout(g.tapTimer)
+    const token = g.token
+    g.tapTimer = setTimeout(() => {
+        if (token !== gameToken || game !== g || g.busy) return
+        const k = g.taps
+        g.taps = 0
+        if (k === g.q.target) return answerRight(btn)
         g.attempts++
-        btn.disabled = true
+        Sfx.soft()
+        renderTaps(g)
+        mascotSays(g.q.noFor(k))
+    }, 1600)
+}
+
+// Un rond par coup tapé ; après 2 essais, les ronds à atteindre s'affichent en pointillés
+function renderTaps(g) {
+    const hint = g.attempts >= HINT_AFTER ? g.q.target : 0
+    const total = Math.min(Math.max(g.taps, hint), 9)
+    $('.taps').innerHTML = range(1, total).map((i) => `<i${i > g.taps ? ' class="ghost"' : ''}></i>`).join('')
+}
+
+// Le prénom : toucher les lettres dans l'ordre ; chaque lettre placée est nommée
+async function onLetter(btn) {
+    const g = game
+    if (!g || g.busy || btn.disabled) return
+    const next = g.q.letters[g.pos]
+    const L = btn.dataset.l
+    if (L !== next) {
+        g.attempts++
         btn.classList.add('wrong')
-        setTimeout(() => btn.classList.replace('wrong', 'gone'), 450)
+        setTimeout(() => btn.classList.remove('wrong'), 450)
         Sfx.soft()
         if (g.attempts >= HINT_AFTER) {
-            $$('.choice')[g.q.choices.findIndex((c) => c.correct)].classList.add('hint')
+            $$('.letter-tile').find((b) => !b.disabled && b.dataset.l === next)?.classList.add('hint')
         }
-        sayPrompt(choice.no)
+        mascotSays([thatIs(`le ${LETTER_SAY[L]}`), lookFor(next)])
+        return
     }
+    $$('.letter-tile.hint').forEach((b) => b.classList.remove('hint'))
+    btn.disabled = true
+    btn.classList.add('placed')
+    const slot = $$('.slot-letter')[g.pos]
+    slot.textContent = L
+    slot.classList.add('filled')
+    g.pos++
+    Sfx.tap()
+    if (g.pos < g.q.letters.length) return Voice.say(letterLine(L))
+    g.busy = true
+    await Voice.say(letterLine(L))
+    if (game === g) answerRight($('.name-slots'))
 }
+
+// Tambour dessiné (couleurs de l'appli)
+const drumSvg = () => `<svg viewBox="0 0 120 110" aria-hidden="true">
+    <path d="M14 36v42c0 12 20.6 22 46 22s46-10 46-22V36" fill="#6C4AB6"/>
+    <path d="M14 46c0 12 20.6 22 46 22s46-10 46-22M14 62c0 12 20.6 22 46 22s46-10 46-22" fill="none" stroke="#FFC93C" stroke-width="4"/>
+    <ellipse cx="60" cy="36" rx="46" ry="20" fill="#EEE8FB" stroke="#4F3591" stroke-width="5"/>
+</svg>`
 
 function levelComplete() {
     const { uid, level } = game
@@ -1114,6 +1480,7 @@ function renderChildren(confirmId = null) {
                 <span class="kid-card-name">${esc(x.name)}</span>
                 ${x.id === cur ? '<span class="tag">Joue en ce moment</span>' : ''}
             </button>
+            <button class="btn small" data-act="age" data-id="${x.id}" aria-label="Changer l'âge de ${esc(x.name)}">${x.age} ans</button>
             <button class="btn small danger" data-act="del" data-id="${x.id}" aria-label="Supprimer ${esc(x.name)}">Supprimer</button>
         </li>`).join('')
     const el = show(`
@@ -1134,6 +1501,12 @@ function renderChildren(confirmId = null) {
             Store.data.currentId = b.dataset.id
             Store.save()
             leaveParent()
+        } else if (act === 'age') {
+            // 3 ↔ 4 ans : la progression de chaque série de jeux est gardée
+            const x = Store.data.profiles.find((y) => y.id === b.dataset.id)
+            x.age = x.age === 4 ? 3 : 4
+            Store.save()
+            renderChildren()
         } else if (act === 'del') renderChildren(b.dataset.id)
         else if (act === 'del-no') renderChildren()
         else if (act === 'del-yes') {
@@ -1194,7 +1567,7 @@ function renderParent() {
     const p = Store.profile
     const { settings, session } = Store.data
     const usedMin = Math.floor(session.usedMs / 60000)
-    const progress = UNIVERSES.map((u) => `<tr><td>${u.name}</td><td>${p.progress[u.id] || 0} / 3</td></tr>`).join('')
+    const progress = universesFor(p).map((u) => `<tr><td>${u.name}</td><td>${p.progress[u.id] || 0} / 3</td></tr>`).join('')
     const durations = [5, 10, 15, 20, 30, 0].map((m) =>
         `<option value="${m}"${m === settings.timerMin ? ' selected' : ''}>${m ? `${m} minutes` : 'Sans limite'}</option>`).join('')
 
@@ -1221,7 +1594,7 @@ function renderParent() {
             </section>
 
             <section>
-                <h3>Progression de ${esc(p.name)}</h3>
+                <h3>Progression de ${esc(p.name)} (jeux ${p.age} ans)</h3>
                 <table class="progress"><thead><tr><th>Univers</th><th>Niveaux réussis</th></tr></thead><tbody>${progress}</tbody></table>
                 <p>Autocollants : ${p.stickers.length} / ${STICKERS.length}</p>
                 <button class="btn danger" data-act="reset">Remettre la progression à zéro</button>
@@ -1271,7 +1644,7 @@ function renderParent() {
         } else if (act === 'reset-no') {
             b.closest('.confirm-box').outerHTML = '<button class="btn danger" data-act="reset">Remettre la progression à zéro</button>'
         } else if (act === 'reset-yes') {
-            p.progress = { couleurs: 0, formes: 0, animaux: 0, chiffres: 0 }
+            p.progress = {}
             p.stickers = []
             Store.save()
             renderParent()
