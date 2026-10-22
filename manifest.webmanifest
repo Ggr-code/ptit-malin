@@ -1,0 +1,14 @@
+{
+    "name": "P'tit Malin – apprendre en jouant",
+    "short_name": "P'tit Malin",
+    "lang": "fr",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#F7F4FC",
+    "theme_color": "#F7F4FC",
+    "icons": [
+        { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    ]
+}

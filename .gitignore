@@ -1,0 +1,6 @@
+# Données privées : les prénoms des enfants ne doivent pas être publiés
+outils/prenoms.txt
+voix/phrases.json
+
+# Système
+.DS_Store
