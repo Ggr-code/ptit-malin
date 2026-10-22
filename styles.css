@@ -781,6 +781,22 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 }
 
 .btn-big .icon { stroke-width: 3.2; }
+
+/* Fin de niveau : grosse flèche qui avance et recule, entourée d'un halo, pour montrer qu'il faut la toucher */
+.next-arrow { position: relative; width: 150px; height: 150px; font-size: 96px; }
+.next-arrow .icon { stroke-width: 3; animation: nudge 1s ease-in-out 1.8s infinite; }
+.next-arrow::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+    border-radius: 50%;
+    border: 6px solid var(--gold);
+    opacity: 0;
+    animation: halo 1.6s ease-out 1.8s infinite;
+    pointer-events: none;
+}
+@keyframes nudge { 50% { transform: translateX(10px); } }
+@keyframes halo { 0% { opacity: .9; transform: scale(.9); } 100% { opacity: 0; transform: scale(1.35); } }
 .btn-big:active { transform: translateY(8px); box-shadow: 0 2px 0 var(--accent-dark); }
 
 /* ---------- Fin du temps ---------- */

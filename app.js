@@ -29,7 +29,8 @@ const PHRASES = {
     timeUp: "C'est fini pour aujourd'hui,",
     wellPlayed: 'Tu as très bien joué ! À bientôt !',
     bye: 'À bientôt,',
-    redTest: "C'est le rouge !"
+    redTest: "C'est le rouge !",
+    tapArrow: 'Touche la flèche pour continuer !'
 }
 const stickerCount = (n) => (n ? `Tu as ${n} autocollant${n > 1 ? 's' : ''} !` : PHRASES.noSticker)
 // « Bravo ! » seul, ou « Bravo, » suivi du prénom
@@ -952,7 +953,8 @@ const ICONS = {
     play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/>',
     lock: '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/>',
     star: '<path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z" fill="currentColor"/>',
-    check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>'
+    check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    next: '<path d="M4.5 12h14"/><path d="M12.5 5.5 19 12l-6.5 6.5"/>'
 }
 const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`
 
@@ -1399,17 +1401,19 @@ function levelComplete() {
         <div class="celebrate-body">
             <div class="big-sticker">${sticker || icon('star', 'gold')}</div>
             <div class="celebrate-stars" aria-hidden="true"><span>${icon('star', 'gold')}</span><span>${icon('star', 'gold')}</span><span>${icon('star', 'gold')}</span></div>
-            <button class="btn-big" data-act="ok" aria-label="Continuer">${icon('check')}</button>
+            <button class="btn-big next-arrow" data-act="ok" aria-label="Continuer">${icon('next')}</button>
         </div>`, 'celebrate', (act) => {
         if (act !== 'ok') return
         Sfx.tap()
         closeLayer()
-        renderLevels(uid)
+        // La flèche mène au niveau suivant ; après le dernier, à la liste des niveaux
+        if (level < 3) startGame(uid, level + 1)
+        else renderLevels(uid)
     })
     Sfx.fanfare()
     Confetti.rain()
     setTimeout(() => Confetti.burst(innerWidth / 2, innerHeight / 2, 90), 350)
-    Talk.run([...praise('Bravo', true), sticker ? PHRASES.newSticker : PHRASES.levelDone])
+    Talk.run([...praise('Bravo', true), sticker ? PHRASES.newSticker : PHRASES.levelDone, PHRASES.tapArrow])
 }
 
 /* ---------- Collection d'autocollants ---------- */
