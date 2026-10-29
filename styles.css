@@ -682,6 +682,62 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .letter-tile { font-weight: 900; color: var(--accent); font-size: calc(var(--size) * .55); }
 .letter-tile.placed { visibility: hidden; }
 
+/* ---------- Jeux 5 ans ---------- */
+/* La boîte à dix : 2 rangées de 5 cases */
+.tenframe {
+    display: grid;
+    grid-template-columns: repeat(5, 1em);
+    gap: .12em;
+    padding: .12em;
+    border-radius: .18em;
+    background: var(--tint);
+    box-shadow: inset 0 0 0 3px var(--line);
+    font-size: clamp(46px, min(10vmin, 13vw), 84px);
+}
+.tenframe i {
+    width: 1em;
+    height: 1em;
+    border-radius: .16em;
+    background: var(--card);
+    display: grid;
+    place-items: center;
+}
+.tenframe i.on::after {
+    content: '';
+    width: .7em;
+    height: .7em;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: inset 0 -.08em 0 var(--accent-dark);
+}
+.art-ten .tenframe { font-size: .2em; }
+
+.sum-pair { display: flex; align-items: center; gap: .3em; font-size: clamp(90px, 18vmin, 160px); }
+.sum-pair .group { font-size: .4em; padding: .15em; border-radius: .25em; background: var(--tint); }
+.sum-and { font-size: .3em; font-weight: 900; color: var(--accent); }
+
+/* Avant, après : la file de nombres */
+.track { display: flex; gap: .15em; font-size: clamp(44px, min(10vmin, 12vw), 84px); }
+.cell {
+    width: 1.3em;
+    height: 1.3em;
+    border-radius: .22em;
+    background: var(--tint);
+    box-shadow: inset 0 0 0 3px var(--line);
+    display: grid;
+    place-items: center;
+    font-weight: 900;
+    color: var(--accent);
+}
+.cell.q { background: var(--card); box-shadow: inset 0 0 0 4px var(--accent); }
+
+/* Les lettres */
+.small-letter { font-family: "Andika", "Comic Sans MS", ui-rounded, system-ui, sans-serif; }
+.word-pic { display: grid; justify-items: center; gap: .1em; }
+.word-pic .emoji { font-size: .85em; }
+.word-hint { font-size: .32em; font-weight: 900; letter-spacing: .08em; color: var(--ink); }
+.word-hint b { color: var(--accent); }
+
 /* ---------- Autocollants ---------- */
 .sticker-grid {
     flex: 1;

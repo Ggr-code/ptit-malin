@@ -4,3 +4,6 @@ voix/phrases.json
 
 # Système
 .DS_Store
+
+# Outil de synthèse vocale installé localement
+outils/.venv/

@@ -26,7 +26,9 @@ const opt = (name, def) => {
     const i = args.indexOf(`--${name}`)
     return i >= 0 ? args[i + 1] : def
 }
-const TTS = opt('tts', 'edge-tts')
+// edge-tts : celui installé dans outils/.venv s'il existe (python3 -m venv outils/.venv && outils/.venv/bin/pip install edge-tts)
+const LOCAL_TTS = join(ROOT, 'outils', '.venv', 'bin', 'edge-tts')
+const TTS = opt('tts', existsSync(LOCAL_TTS) ? LOCAL_TTS : 'edge-tts')
 const VOICE = opt('voice', 'fr-FR-DeniseNeural')
 const RATE = opt('rate', '-8%')
 const FORCE = args.includes('--force')

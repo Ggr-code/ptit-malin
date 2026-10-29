@@ -35,7 +35,7 @@ const PHRASES = {
 const stickerCount = (n) => (n ? `Tu as ${n} autocollant${n > 1 ? 's' : ''} !` : PHRASES.noSticker)
 // « Bravo ! » seul, ou « Bravo, » suivi du prénom
 const praise = (word, withName) => (withName ? [`${word},`, NAME] : [`${word} !`])
-const WORDS = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six']
+const WORDS = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix']
 
 /* =========================================================
    Utilitaires
@@ -923,15 +923,222 @@ const UNIVERSES_4 = [
     { id: 'tambour', name: 'Le tambour des syllabes', color: 'var(--tint)', art: '<span class="art-animals"><i>🐰</i><i>🥁</i><i>🦋</i></span>' },
     { id: 'prenom', name: 'Les lettres de mon prénom', color: 'var(--tint)', goal: 3, art: '<span class="art-letters"><b>A</b><b>B</b><b>C</b></span>' }
 ]
-const universesFor = (p) => (p?.age === 4 ? UNIVERSES_4 : UNIVERSES)
-const UNI = Object.fromEntries([...UNIVERSES, ...UNIVERSES_4].map((u) => [u.id, u]))
+/* =========================================================
+   Jeux 5 ans (attendus de grande section)
+   Nombres jusqu'à 10, suite des nombres, sons des mots, lettres.
+   ========================================================= */
+
+/* ---------- La boîte à dix (quantités jusqu'à 10, compléments, composer) ---------- */
+// Boîte de 10 cases (2 rangées de 5), n jetons
+const tenFrame = (n) => `<div class="tenframe">${range(1, 10).map((i) => `<i${i <= n ? ' class="on"' : ''}></i>`).join('')}</div>`
+// 3 réponses : la bonne et deux voisines, entre 1 et 10
+const nearOptions = (t, min = 1, max = 10) => [t, ...sample(range(min, max).filter((n) => n !== t && Math.abs(n - t) <= 3), 2)]
+const digitChoices = (opts, t) => opts.map((n) => card(digit(n), String(n), n === t, thatIs(`le ${WORDS[n]}`)))
+
+function tenCountQuestion() {
+    const t = 4 + Math.floor(Math.random() * 7)
+    return question('Combien y a-t-il de jetons dans la boîte ?', tenFrame(t), digitChoices(nearOptions(t), t),
+        `Il y a ${WORDS[t]} jetons !`, `c${t}`)
+}
+
+function tenMissingQuestion() {
+    const n = 3 + Math.floor(Math.random() * 7)
+    const t = 10 - n
+    return question('Combien de jetons manque-t-il pour remplir la boîte ?', tenFrame(n), digitChoices(nearOptions(t, 1, 9), t),
+        `${cap(WORDS[n])} et ${WORDS[t]}, ça fait dix !`, `m${n}`)
+}
+
+function tenSumQuestion() {
+    const o = rand(COUNT_OBJS)
+    const a = 1 + Math.floor(Math.random() * 5)
+    const b = 1 + Math.floor(Math.random() * Math.min(5, 10 - a))
+    const t = a + b
+    return question([`${cap(qty(a, o))}, et encore ${qty(b, o)}.`, 'Combien en tout ?'],
+        `<div class="sum-pair">${group(a, o.e)}<span class="sum-and">et</span>${group(b, o.e)}</div>`,
+        digitChoices(nearOptions(t, 2, 10), t), `${cap(WORDS[a])} et ${WORDS[b]}, ça fait ${WORDS[t]} !`, `s${a}${b}${o.e}`)
+}
+
+/* ---------- Avant, après (suite des nombres jusqu'à 10) ---------- */
+// Réponses proposées : la bonne et les deux nombres les plus proches qui ne sont pas déjà dans la file
+const trackChoices = (t, visible) => {
+    const near = shuffle(range(1, 10).filter((x) => x !== t && !visible.includes(x)))
+        .sort((a, b) => Math.abs(a - t) - Math.abs(b - t))
+    return digitChoices([t, ...near.slice(0, 2)], t)
+}
+const numberTrack = (cells) => `<div class="track">${cells.map((x) => (x == null ? '<span class="cell q">?</span>' : `<span class="cell">${x}</span>`)).join('')}</div>`
+
+function afterQuestion() {
+    const n = 1 + Math.floor(Math.random() * 9)
+    const t = n + 1
+    const cells = [...(n > 1 ? [n - 1] : []), n, null]
+    return question(`Quel nombre vient juste après le ${WORDS[n]} ?`, numberTrack(cells), trackChoices(t, cells),
+        `Après ${WORDS[n]}, il y a ${WORDS[t]} !`, `a${n}`)
+}
+
+function beforeQuestion() {
+    const n = 2 + Math.floor(Math.random() * 9)
+    const t = n - 1
+    const cells = [null, n, ...(n < 10 ? [n + 1] : [])]
+    return question(`Quel nombre vient juste avant le ${WORDS[n]} ?`, numberTrack(cells), trackChoices(t, cells),
+        `Avant ${WORDS[n]}, il y a ${WORDS[t]} !`, `b${n}`)
+}
+
+function missingInTrackQuestion() {
+    const start = 1 + Math.floor(Math.random() * 6)
+    const seq = range(start, start + 4)
+    const hole = 1 + Math.floor(Math.random() * 3)
+    const t = seq[hole]
+    const cells = seq.map((x, i) => (i === hole ? null : x))
+    return question('Quel nombre manque dans la file ?', numberTrack(cells), trackChoices(t, cells), `${cap(seq.map((x) => WORDS[x]).join(', '))} !`, `t${start}${hole}`)
+}
+
+/* ---------- Les sons des mots (rimes, début des mots, intrus) ---------- */
+// end : le son de la fin (pour les rimes) ; start : le début du mot, tel que la voix le dit
+const SOUND_WORDS = [
+    { e: '🐱', w: 'le chat', end: 'a', start: 'cha' },
+    { e: '🐀', w: 'le rat', end: 'a' },
+    { e: '🍫', w: 'le chocolat', end: 'a' },
+    { e: '🐰', w: 'le lapin', end: 'in' },
+    { e: '🌲', w: 'le sapin', end: 'in' },
+    { e: '🍞', w: 'le pain', end: 'in' },
+    { e: '⛵', w: 'le bateau', end: 'o', start: 'ba' },
+    { e: '🎂', w: 'le gâteau', end: 'o' },
+    { e: '🚲', w: 'le vélo', end: 'o' },
+    { e: '🐑', w: 'le mouton', end: 'on' },
+    { e: '🎈', w: 'le ballon', end: 'on', start: 'ba' },
+    { e: '🐟', w: 'le poisson', end: 'on' },
+    { e: '🐭', w: 'la souris', end: 'i' },
+    { e: '🍚', w: 'le riz', end: 'i' },
+    { e: '🛏️', w: 'le lit', end: 'i' },
+    { e: '🍌', w: 'la banane', start: 'ba' },
+    { e: '🦆', w: 'le canard', start: 'ca' },
+    { e: '🚚', w: 'le camion', start: 'ca' },
+    { e: '🎁', w: 'le cadeau', start: 'ca' },
+    { e: '🎩', w: 'le chapeau', start: 'cha' },
+    { e: '🏰', w: 'le château', start: 'cha' },
+    { e: '🦋', w: 'le papillon', start: 'pa' },
+    { e: '🐼', w: 'le panda', start: 'pa' },
+    { e: '☂️', w: 'le parapluie', start: 'pa' },
+    { e: '🏠', w: 'la maison', start: 'ma' },
+    { e: '🧥', w: 'le manteau', start: 'ma' },
+    { e: '🔨', w: 'le marteau', start: 'ma' }
+]
+// La voix nomme les images de gauche à droite : « le rat, la lune, ou le vélo ? »
+const nameList = (items) => items.map((x, i) => (i === items.length - 1 ? `ou ${x.w} ?` : `${x.w},`))
+const picChoice = (x, correct, no) => ({ kind: 'card', html: emo(x.e), label: x.w, correct, no })
+
+function rhymeQuestion() {
+    const rhyming = SOUND_WORDS.filter((x) => x.end)
+    const t = rand(rhyming)
+    const match = rand(rhyming.filter((x) => x.end === t.end && x !== t))
+    const others = sample(rhyming.filter((x) => x.end !== t.end), 2)
+    const shown = shuffle([match, ...others])
+    return {
+        say: [`Quel mot rime avec ${t.w} ?`, ...nameList(shown)],
+        visual: emo(t.e),
+        choices: shown.map((x) => picChoice(x, x === match, `Non, ${x.w}, ça ne rime pas avec ${t.w}.`)),
+        praise: `${cap(t.w)}, ${match.w} : ça rime !`,
+        key: t.w
+    }
+}
+
+function startQuestion() {
+    const starting = SOUND_WORDS.filter((x) => x.start)
+    const t = rand(starting)
+    const match = rand(starting.filter((x) => x.start === t.start && x !== t))
+    const others = sample(starting.filter((x) => x.start !== t.start), 2)
+    const shown = shuffle([match, ...others])
+    return {
+        say: [`Quel mot commence comme ${t.w} ?`, ...nameList(shown)],
+        visual: emo(t.e),
+        choices: shown.map((x) => picChoice(x, x === match, `Non, ${x.w}, ça commence par ${x.start}.`)),
+        praise: `${cap(t.w)}, ${match.w} : ça commence par ${t.start} !`,
+        key: t.w
+    }
+}
+
+function oddOneQuestion() {
+    const ends = [...new Set(SOUND_WORDS.filter((x) => x.end).map((x) => x.end))]
+        .filter((e) => SOUND_WORDS.filter((x) => x.end === e).length >= 3)
+    const end = rand(ends)
+    const group3 = sample(SOUND_WORDS.filter((x) => x.end === end), 3)
+    const odd = rand(SOUND_WORDS.filter((x) => x.end && x.end !== end))
+    const shown = shuffle([...group3, odd])
+    return {
+        say: ['Trois mots riment ensemble. Trouve celui qui ne rime pas !', ...nameList(shown)],
+        visual: null,
+        choices: shown.map((x) => picChoice(x, x === odd, `Non, ${x.w} rime avec ${group3.find((y) => y !== x).w}.`)),
+        praise: `${cap(odd.w)} ne rime pas avec les autres !`,
+        key: `o${odd.w}`
+    }
+}
+
+/* ---------- Les lettres (nommer, grande et petite lettre, première lettre d'un mot) ---------- */
+const CAPITALS = Object.keys(LETTER_SAY).filter((l) => /^[A-Z]$/.test(l))
+const letterChoice = (L, correct, small = false) => ({
+    kind: 'card',
+    html: `<span class="big-letter${small ? ' small-letter' : ''}">${small ? L.toLowerCase() : L}</span>`,
+    label: L,
+    correct,
+    no: thatIs(`le ${small ? 'petit ' : ''}${LETTER_SAY[L]}`)
+})
+
+function touchLetterQuestion() {
+    const [t, ...others] = sample(CAPITALS, 3)
+    return question(`Touche le ${LETTER_SAY[t]}.`, null, [t, ...others].map((L) => letterChoice(L, L === t)),
+        `C'est le ${LETTER_SAY[t]} !`, t)
+}
+
+function smallLetterQuestion() {
+    const t = rand(CAPITALS)
+    // b, d, p et q se ressemblent : on les met ensemble pour apprendre à les distinguer
+    const pool = 'BDPQ'.includes(t) ? [...'BDPQ'] : CAPITALS
+    const others = sample(pool.filter((l) => l !== t), 2)
+    return question(`Voici le ${LETTER_SAY[t]} en grande lettre. Trouve le même en petite lettre.`,
+        `<span class="big-letter">${t}</span>`, [t, ...others].map((L) => letterChoice(L, L === t, true)),
+        `C'est le petit ${LETTER_SAY[t]} !`, `p${t}`)
+}
+
+// Mots qui commencent par la lettre qu'on entend
+const FIRST_LETTER_WORDS = [
+    { e: '🐰', w: 'lapin' }, { e: '🐑', w: 'mouton' }, { e: '🎈', w: 'ballon' }, { e: '🤖', w: 'robot' },
+    { e: '🌲', w: 'sapin' }, { e: '🐢', w: 'tortue' }, { e: '🚲', w: 'vélo' }, { e: '🚀', w: 'fusée' },
+    { e: '🍎', w: 'pomme' }, { e: '🦕', w: 'dinosaure' }, { e: '☁️', w: 'nuage' }, { e: '🐨', w: 'koala' },
+    { e: '🍍', w: 'ananas' }, { e: '🦒', w: 'girafe' }
+]
+function firstLetterOfWordQuestion() {
+    const x = rand(FIRST_LETTER_WORDS)
+    const word = x.w.toUpperCase()
+    const t = word.normalize('NFD')[0]
+    const others = sample(CAPITALS.filter((l) => l !== t), 2)
+    return question(`Par quelle lettre commence le mot ${x.w} ?`,
+        `<div class="word-pic">${emo(x.e)}<span class="word-hint"><b>?</b>${word.slice(1)}</span></div>`,
+        [t, ...others].map((L) => letterChoice(L, L === t)), `${cap(x.w)} commence par le ${LETTER_SAY[t]} !`, x.w)
+}
+
+Object.assign(GEN, {
+    dix: { 1: tenCountQuestion, 2: tenMissingQuestion, 3: tenSumQuestion },
+    suite: { 1: afterQuestion, 2: beforeQuestion, 3: missingInTrackQuestion },
+    sons: { 1: rhymeQuestion, 2: startQuestion, 3: oddOneQuestion },
+    lettres: { 1: touchLetterQuestion, 2: smallLetterQuestion, 3: firstLetterOfWordQuestion }
+})
+
+const UNIVERSES_5 = [
+    { id: 'dix', name: 'La boîte à dix', color: 'var(--tint)', art: '<span class="art-ten">' + tenFrame(7) + '</span>' },
+    { id: 'suite', name: 'Avant, après', color: 'var(--tint)', art: '<span class="art-digits"><b>4</b><b>5</b><b>?</b></span>' },
+    { id: 'sons', name: 'Les sons des mots', color: 'var(--tint)', art: '<span class="art-animals"><i>🐱</i><i>🎵</i><i>🐀</i></span>' },
+    { id: 'lettres', name: 'Les lettres', color: 'var(--tint)', art: '<span class="art-letters"><b>A</b><b>a</b><b>B</b></span>' }
+]
+
+const universesFor = (p) => (p?.age === 5 ? UNIVERSES_5 : p?.age === 4 ? UNIVERSES_4 : UNIVERSES)
+const UNI = Object.fromEntries([...UNIVERSES, ...UNIVERSES_4, ...UNIVERSES_5].map((u) => [u.id, u]))
 const goalOf = (uid) => UNI[uid].goal || STREAK_GOAL
 
 // Phrases dites hors des questions tirées au hasard : outils/generer-voix.mjs les enregistre aussi
 function extraPhrases() {
     return [
         ...Object.values(PHRASES4),
-        ...[...UNIVERSES, ...UNIVERSES_4].map((u) => `${u.name} !`),
+        ...[...UNIVERSES, ...UNIVERSES_4, ...UNIVERSES_5].map((u) => `${u.name} !`),
         ...range(1, 6).map(countWord),
         ...range(1, 9).map(tapped),
         ...SYLLABLE_WORDS.flatMap((x) => [wordLine(x), scanned(x), strokes(x.s.length)]),
@@ -1054,7 +1261,7 @@ function profileForm(submitLabel) {
             </label>
             <fieldset class="ages">
                 <legend>Son âge</legend>
-                ${[3, 4].map((a, i) => `<label><input type="radio" name="age" value="${a}"${i === 0 ? ' checked' : ''}><span>${a} ans</span></label>`).join('')}
+                ${[3, 4, 5].map((a, i) => `<label><input type="radio" name="age" value="${a}"${i === 0 ? ' checked' : ''}><span>${a} ans</span></label>`).join('')}
                 <p class="muted">Les jeux proposés s'adaptent à l'âge. Vous pourrez le changer plus tard.</p>
             </fieldset>
             <fieldset class="avatars">
@@ -1082,7 +1289,7 @@ function renderSetup() {
         <div class="panel setup-panel">
             <div class="setup-hero">${mascotSvg()}</div>
             <h1>Bienvenue dans P'tit Malin</h1>
-            <p>Cette application aide votre enfant à apprendre en jouant, avec des jeux adaptés à son âge (3 ou 4 ans) : couleurs, formes, animaux, nombres, motifs, sons et lettres.
+            <p>Cette application aide votre enfant à apprendre en jouant, avec des jeux adaptés à son âge (3, 4 ou 5 ans) : couleurs, formes, animaux, nombres, motifs, sons et lettres.
             Tout se fait à la voix et en images : il n'a pas besoin de savoir lire.</p>
             <p class="muted">Les données restent sur cet appareil. Pas de compte, pas de publicité, pas d'achat.</p>
             ${profileForm("C'est parti !")}
@@ -1506,9 +1713,9 @@ function renderChildren(confirmId = null) {
             Store.save()
             leaveParent()
         } else if (act === 'age') {
-            // 3 ↔ 4 ans : la progression de chaque série de jeux est gardée
+            // 3 → 4 → 5 → 3 ans : la progression de chaque série de jeux est gardée
             const x = Store.data.profiles.find((y) => y.id === b.dataset.id)
-            x.age = x.age === 4 ? 3 : 4
+            x.age = x.age >= 5 ? 3 : x.age + 1
             Store.save()
             renderChildren()
         } else if (act === 'del') renderChildren(b.dataset.id)
